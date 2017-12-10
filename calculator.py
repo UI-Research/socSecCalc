@@ -6,8 +6,14 @@
 import pandas as pd
 
 # First read in the csv file with year maximum earnings and indexing factor
-ssParam = pd.read_csv("calculationParam.csv", header = True)
-avgWages = pd.read_csv("awi.csv", header - True)
+ssParam = pd.read_csv("calculationParam.csv", header = 0)
+avgWages = pd.read_csv("awi.csv", header = 0)
+
+ssParam.index = ssParam["Year"]
+ssParam = ssParam.drop("Year", axis = 1)
+
+avgWages.index = avgWages["year"]
+avgWages = avgWages.drop("year", axis = 1)
 
 # Create a function to calculate average earnings
 # In this intitial iteration, it will expect either a full list of earnings
@@ -28,8 +34,24 @@ avgWages = pd.read_csv("awi.csv", header - True)
 # grate - The growth rate of the wages relative to the national average.
 
 def calcSS(year, age, earnings, singleEarn = True, grate = 0.02,
-           ssparm = ssParam, avgWages = avgWages)
+           ssparm = ssParam, avgWages = avgWages):
      # If they put in a single year, we have to go backwords to age 18
      if singleEarn == True:
-         
+        earnings = calcStream(year, age, earnings, grate, avgWages) 
         
+
+
+def calcStream(year, age, earnings, grate, myWages):
+    myWages = myWages.loc[(year-(age-18)):year,]
+    myWages.loc[year, "wage"] = earnings
+    for i in range(year-1,year-(age-18)-1, -1):
+        wageNY = myWages.loc[i+1, "wage"]
+        changeTY = myWages.loc[i, "change"]
+        myWages.loc[i, "wage"] = wageNY/((1+grate)*changeTY)
+    return myWages.drop("change", axis = 1)
+
+#TEST SET UP
+year = 2016
+age = 66
+grate=0.02
+earnings = 37700
