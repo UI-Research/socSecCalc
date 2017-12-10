@@ -40,14 +40,27 @@ def calcSS(year, age, earnings, singleEarn = True, grate = 0.02,
         earnings = calcStream(year, age, earnings, grate, avgWages) 
         
 
-
+# calcStream is a helper function that projects wages backwards
+# for a given person with reported earnings for a single year
+# and a given wage. This obviously will smooth out wage changes,
+# so we might want to consider a different method of obtaining
+# estimated wages. This is currently set up to match the basic
+# social security calculator. 
 def calcStream(year, age, earnings, grate, myWages):
+
+    # drop years outside ages 18-current age
     myWages = myWages.loc[(year-(age-18)):year,]
+
+    # set up the wage column and put earnings for that year in the
+    # correct row for that column
     myWages.loc[year, "wage"] = earnings
+    
+    # loop through to put correct wages in the dataframe
     for i in range(year-1,year-(age-18)-1, -1):
         wageNY = myWages.loc[i+1, "wage"]
         changeTY = myWages.loc[i, "change"]
         myWages.loc[i, "wage"] = wageNY/((1+grate)*changeTY)
+
     return myWages.drop("change", axis = 1)
 
 #TEST SET UP
