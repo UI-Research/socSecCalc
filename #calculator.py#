@@ -29,11 +29,11 @@ ssParam = ssParam.drop("Year", axis = 1)
 #              or a stream. True is for a single year, false is for a stream.
 # grate - The growth rate of the wages relative to the national average.
 
-def calcSS(year, yearNow, age, earnings, singleEarn = True, grate = 0.02,
+def calcSS(year, yearNow, age, earnings, singleEarn = True, grate = 0,
            myWS = ssParam):
      # If they put in a single year, we have to go backwords to age 18
      if singleEarn == True:
-        earnings = calcStream(year, age, earnings, grate, myWS)
+        earnings = calcStream(year, age, min(earnin, grate, myWS)
 
      # Merge the earnings data frame and the ssParam dataframe so everything
      # is in one year and only the working years are live
