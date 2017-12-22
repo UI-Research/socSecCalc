@@ -4,6 +4,7 @@
 
 # First load package dependencies. Pandas should be sufficient for now
 import pandas as pd
+from scipy.optimize import minimize_scalar
 
 # First read in the csv file with year maximum earnings and indexing factor
 ssParam = pd.read_csv("calculationParam.csv", header = 0)
@@ -25,19 +26,14 @@ ssParam = ssParam.drop("Year", axis = 1)
 #            assumed to go end with the year of retirement. A future version
 #            might expand this to a dictionary where we allow values in
 #            the stream to be tied to specific years.
-# singleEarn - A flag indicating whether earnings is for the final year
-#              or a stream. True is for a single year, false is for a stream.
 # grate - The growth rate of the wages relative to the national average.
 
-def calcSS(year, yearNow, age, earnings, singleEarn = True, grate = 0.02,
+def calcSS(year, yearNow, age, earnings, grate = 0,
            myWS = ssParam):
-     # If they put in a single year, we have to go backwords to age 18
-     if singleEarn == True:
-        earnings = calcStream(year, age, earnings, grate, myWS)
 
-     # Merge the earnings data frame and the ssParam dataframe so everything
-     # is in one year and only the working years are live
-     myWS = myWS.merge(earnings, 'outer', left_index = True, right_index = True)
+     # calculate earning stream. This function also
+     # merges the final result with the parameter dataframe 
+     myWS = calcStream(year, age, earnings, grate, myWS)
 
      # Calculate Indexing
      year60 = year - (age - 60)
@@ -82,7 +78,7 @@ def calcSS(year, yearNow, age, earnings, singleEarn = True, grate = 0.02,
      if yearNow != year:
           colaAdj = (1+myWS.loc[year+1:yearNow, "COLA"]/100).prod()
      else:
-          colaAdj = 0
+          colaAdj = 1
      ben = ben * colaAdj
      
      # right now only full benefit calculation is set up
@@ -97,27 +93,38 @@ def calcSS(year, yearNow, age, earnings, singleEarn = True, grate = 0.02,
 # social security calculator. 
 def calcStream(year, age, earnings, grate, myWages):
 
-    # initialize wage column
-    myWages = myWages.assign(wage = lambda x: 0)
-    
+    earnings = earnings.loc[earnings.index[0]:year]
+    # initialize wage column    
     # put earnings for that year in the correct row for that column
-    myWages.loc[year, "wage"] = earnings
-    
+    myWages = myWages.merge(earnings, 'outer', left_index = True,
+                            right_index = True)
+
     # loop through to put correct wages in the dataframe
-    for i in range(year-1,year-(age-18)-1, -1):
+    for i in range(earnings.index[0]-1,year-(age-18)-1, -1):
         wageNY = myWages.loc[i+1, "wage"]
         changeTY = myWages.loc[i+1, "AWI"]/myWages.loc[i, "AWI"]
         myWages.loc[i, "wage"] = wageNY/((1+grate)*changeTY)
 
-    return myWages[["wage"]]
+    return myWages
+
+def findGrate(target, year, yearNow, age, earnings, myWS = ssParam):
+     def f(grate):
+          return abs(calcSS(year, yearNow, age, earnings, grate)-target)
+     res =  minimize_scalar(f, bounds = (-0.1, 0.1), method = 'bounded')
+     return res.x
 
 #TEST SET UP
 year = 2016
 age = 66
-grate=0.02
-earnings = 40000
+grate=0
+earnings = pd.DataFrame({'wage': [40000]},
+                         index = [2016])
+target = 1514
 
-myStream = calcStream(year, age, earnings, grate, ssParam)
+grate = findGrate(target, year, year, age, earnings)
+print(grate)
+
 #myStream["wage"] = myStream["wage"]
-print(calcSS(year, 2017, age, myStream, False, grate))
-#print(myStream)
+print(calcSS(year, year, age, earnings, grate))
+print(calcSS(year, 2017, age, earnings, grate= 0.02))
+
