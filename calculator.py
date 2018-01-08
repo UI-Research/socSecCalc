@@ -20,7 +20,7 @@ ssParam = ssParam.drop("Year", axis = 1)
 # years of earnings can only go back to 1956. Will assume work starting at
 # age 18.
 
-# Year - year of retirement
+# Year - year of retirement. Earnings dumped in year prior
 # Age - age at retirement
 # Earnings - Either earnings at year prior to retirement or a stream of wages
 #            assumed to go end with the year of retirement. A future version
@@ -33,12 +33,12 @@ def calcSS(year, yearNow, age, earnings, grate = 0,
 
      # calculate earning stream. This function also
      # merges the final result with the parameter dataframe 
-     myWS = calcStream(year, age, earnings, grate, myWS)
+     myWS = calcStream(year-1, age, earnings, grate, myWS)
 
      # Calculate Indexing
      year60 = year - (age - 60)
      myWS.loc[year60:year, "Index"] = 1
-     for i in range(myWS.index.min(), year):
+     for i in range(myWS.index.min(), year60):
           myWS.loc[i, "Index"] = myWS.loc[year60, "AWI"]/myWS.loc[i, "AWI"]
               
      # Determine actual earnings by comparing wage to maximum eligible earnings
@@ -51,7 +51,7 @@ def calcSS(year, yearNow, age, earnings, grate = 0,
      myWS_Top35 = myWS.nlargest(35, "indexedEarning")
 
      # AIME calculation
-     AIME = myWS_Top35["indexedEarning"].sum()/420
+     AIME = (myWS_Top35["indexedEarning"].sum()/420)//1
 
      # min years for bends
      bend1 = round(180*myWS.loc[year60, "AWI"]/myWS.loc[1977, "AWI"], 0)
@@ -75,8 +75,8 @@ def calcSS(year, yearNow, age, earnings, grate = 0,
      ben = full_ben + full_ben * (inc - reduct)/100
 
      # COLA Adjustment
-     if yearNow != year:
-          colaAdj = (1+myWS.loc[year+1:yearNow, "COLA"]/100).prod()
+     if year != (year60+2):
+          colaAdj = (1+myWS.loc[(year60+2):year, "COLA"]/100).prod()
      else:
           colaAdj = 1
      ben = ben * colaAdj
@@ -98,7 +98,7 @@ def calcStream(year, age, earnings, grate, myWages):
     # put earnings for that year in the correct row for that column
     myWages = myWages.merge(earnings, 'outer', left_index = True,
                             right_index = True)
-
+    myWages.loc[range(myWages.index.min(),earnings.index[0]), "wage"] = 0
     # loop through to put correct wages in the dataframe
     for i in range(earnings.index[0]-1,year-(age-18)-1, -1):
         wageNY = myWages.loc[i+1, "wage"]
@@ -114,17 +114,21 @@ def findGrate(target, year, yearNow, age, earnings, myWS = ssParam):
      return res.x
 
 #TEST SET UP
-year = 2016
-age = 66
-grate=0
-earnings = pd.DataFrame({'wage': [40000]},
-                         index = [2016])
-target = 1514
+# These tests were run using https://www.ssa.gov/OACT/ProgData/retirebenefit1.html
+year = 2018
+age = 62
+grate=0.02
+earnings = pd.read_csv("exCase2.csv", header = 0)
 
-grate = findGrate(target, year, year, age, earnings)
-print(grate)
+earnings.index = earnings["Year"]
+earnings = earnings.drop("Year", axis = 1)
+print(earnings)
+#target = 1514
+
+#grate = findGrate(target, year, year, age, earnings)
+#print(grate)
 
 #myStream["wage"] = myStream["wage"]
 print(calcSS(year, year, age, earnings, grate))
-print(calcSS(year, 2017, age, earnings, grate= 0.02))
+#print(calcSS(year, 2017, age, earnings, grate= 0.02))
 
