@@ -20,24 +20,27 @@ ssParam = ssParam.drop("Year", axis = 1)
 # years of earnings can only go back to 1956. Will assume work starting at
 # age 18.
 
-# Year - year of retirement. Earnings dumped in year prior
-# Age - age at retirement
-# Earnings - Either earnings at year prior to retirement or a stream of wages
-#            assumed to go end with the year of retirement. A future version
-#            might expand this to a dictionary where we allow values in
-#            the stream to be tied to specific years.
+# yearCollect - year of social security benefit collection. Currently doesn't do anything
+# yearNow - current year
+# Age - age at current year. assumed to be born january of yearNow
+# Earnings - Either earnings at yearNow or a stream of wages
+#            assumed to go end with the year of retirement. 
 # grate - The growth rate of the wages relative to the national average.
+# earnTest - a switch for the earnings test. I conceive of this as sort of creating 
+#            alternative interpretations of the test. Setting it to true thinks about
+#            it as a pure tax, while setting it to false makes it an zero affect, actuarily
+#            fair assessment. 
 
-def calcSS(year, yearNow, age, earnings, grate = 0,
-           myWS = ssParam):
+def calcSS(yearCollect, yearNow, age, earnings, grate = 0,
+           myWS = ssParam, earnTest = False):
 
      # calculate earning stream. This function also
      # merges the final result with the parameter dataframe 
-     myWS = calcStream(year-1, age, earnings, grate, myWS)
+     myWS = calcStream(yearNow, age, earnings, grate, myWS)
 
      # Calculate Indexing
-     year60 = year - (age - 60)
-     myWS.loc[year60:year, "Index"] = 1
+     year60 = yearNow - (age - 60)
+     myWS.loc[year60:yearNow, "Index"] = 1
      for i in range(myWS.index.min(), year60):
           myWS.loc[i, "Index"] = myWS.loc[year60, "AWI"]/myWS.loc[i, "AWI"]
               
@@ -64,7 +67,7 @@ def calcSS(year, yearNow, age, earnings, grate = 0,
      full_ben = AIME_R1 + AIME_R2 + AIME_R3
 
      # Limitation, we assume everyone born Jan 1
-     fullRetAge = myWS.loc[year-age, "FullRetAge"]
+     fullRetAge = myWS.loc[yearNow-age, "FullRetAge"]
      nMonthsEarly = max(0, fullRetAge - age*12)
      nMonthsLate = max(0, age*12 -(fullRetAge))
 
@@ -75,12 +78,22 @@ def calcSS(year, yearNow, age, earnings, grate = 0,
      ben = full_ben + full_ben * (inc - reduct)/100
 
      # COLA Adjustment
-     if year != (year60+2):
-          colaAdj = (1+myWS.loc[(year60+2):year, "COLA"]/100).prod()
-     else:
-          colaAdj = 1
-     ben = ben * colaAdj
+     if yearNow != (year60+2):
+        colaAdj = (1+myWS.loc[(year60+2):year, "COLA"]/100).prod()
+        ben = ben * colaAdj
      
+     if earnTest == True and age*12 < fullRetAge:
+        earningsNow = earnings[yearNow]
+        if nMonthsEarly < 12:
+            exemptAmt = round(670*myWS.loc[year-2, "AWI"]/myWS.loc[1992, "AWI"], -1)*12
+            earningLim = max(0, (earningsNow-exemptAmt)/2)
+        else:
+            exemptAmt = round(1420*myWS.loc[year-2, "AWI"]/myWS.loc[2000, "AWI"], -1)*12
+            earningLim = max(0, (earningsNow-exemptAmt)/3)            
+        ben =  max(0, ben - earningLim)   
+
+        
+        
      # right now only full benefit calculation is set up
      return ben
      
